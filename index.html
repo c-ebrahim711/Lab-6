@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link
+    rel="shortcut icon"
+    type="image/x-icon"
+    href="docs/images/favicon.ico"
+  />
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin=""/>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""></script>
+
+  <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
+
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+  <script src="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js"></script>
+  <link
+    href="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css"
+    rel="stylesheet"
+  />
+  <script src="https://unpkg.com/leaflet-control-coordinates/dist/leaflet-control-coordinates.min.js"></script>
+  
+  <script src="./js/leaflet-search.js"></script>
+  <link href="./css/leaflet-search.min.css" rel="stylesheet" />
+
+  
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #map {
+      width: 100%;
+      /*600px;*/
+      height: 100%;
+      /*400px;*/
+  }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  
+  <script>
+    // Basic map
+    var map = L.map('map', {fullscreenControl: true,
+     }).setView([42.75, -75.0], 7);
+     
+    // Add base layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+ // Base maps - define the tile layers
+var Esri_baseMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles © Esri',
+  maxZoom: 19
+});
+
+var OpenStreetMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap'
+});
+
+var HumanitarianOSM = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© Humanitarian OSM'
+});
+
+// Add default base layer to map
+Esri_baseMap.addTo(map);
+
+
+// Create layer control
+var baseLayers = {
+  "Esri World Imagery": Esri_baseMap,
+  "OpenStreetMap": OpenStreetMap,
+  "Humanitarian OSM": HumanitarianOSM
+};
+
+// Add overlay layers object (empty if no overlays)
+var overlayLayers = {};
+
+// Create and add layer control to map
+L.control.layers(baseLayers, overlayLayers).addTo(map);
+
+
+
+
+//custom icon 
+var waterIcon = L.icon({
+    iconUrl: 'drop_water.png',
+    iconSize:     [20, 35], // size of the icon
+    popupAnchor:  [-3, -76] // point from which the popup should open relative to the iconAnchor
+});
+
+
+//Load in districts  
+fetch('NYS_Senate_Districts.geojson')
+    .then(response => response.json())
+    .then(data => {
+        const layer = L.geoJSON(data, {
+            style: styleFn,
+            onEachFeature: (feature, layer) => {
+                layer.bindPopup(`
+                    <b>District ${feature.properties.DISTRICT}</b>
+                `);
+            }
+        }).addTo(map);
+        map.fitBounds(layer.getBounds());
+    });
+
+//Load in aquatic test sites 
+fetch('aquatic_toxicity.geojson')
+  .then(response => response.json())
+  .then(data => {
+    L.geoJSON(data, {
+      pointToLayer: (feature, latlng) => {
+        return L.marker(latlng, { icon: waterIcon }); 
+      },
+      onEachFeature: onEachFeatureFn
+    }).addTo(map);
+    
+    map.fitBounds(L.geoJSON(data).getBounds());
+  });
+
+function onEachFeatureFn(feature, layer) {
+  var popupContent = `
+    <p>Name: ${feature.properties.STREAM}</br>
+    ID: ${feature.properties.STATIONID}<br>
+    Water Toxicity: ${feature.properties.MOST_RECENT_WATER_TOXICITY}</br>
+    Sediment Toxicity: ${feature.properties.MOST_RECENT_SEDIMENT_TOXICITY}</br>
+    Porewater Toxicity: ${feature.properties.MOST_RECENT_POREWATER_TOXICITY}
+    </p>`;
+  
+  layer.bindPopup(popupContent);
+}
+
+
+// Color palette for districts 
+const districtColors = {
+    1: '#a6cee3', 2: '#1f78b4',  3: '#b2df8a', 4: '#33a02c', 5: '#fb9a99',
+    6: '#e31a1c', 7: '#fdbf6f', 8: '#ff7f00', 9: '#cab2d6', 10: '#6a3d9a',
+    11: '#ffff99', 12: '#b15928', 13: '#8dd3c7', 14: '#ffffb3', 15: '#bebada',
+    16: '#fb8072', 17: '#80b1d3', 18: '#fdb462', 19: '#b3de69', 20: '#fccde5',
+    21: '#d9d9d9', 22: '#bc80bd', 23: '#ccebc5', 24: '#ffed6f', 25: '#ff8c00',
+    26: '#4daf4a', 27: '#984ea3', 28: '#377eb8', 29: '#e41a1c', 30: '#ffff33',
+    31: "#ff6b61", 32: "#00c3a9", 33: "#ff9e40", 34: "#7fdbff", 35: "#b10dc9",
+    36: "#ffdc00", 37: "#01ff70", 38: "#f012be", 39: "#39cccc", 40: "#85144b",
+    41: "#2ecc40", 42: "#b826dc", 43: "#ff851b", 44: "#0074d9", 45: "#ff4136",
+    46: "#2ecc71", 47: "#ff0080", 48: "#3d9970", 49: "#aa00ff", 50: "#ffd700",
+    51: "#00ff9d", 52: "#d400ff", 53: "#ff6d00", 54: "#0095ff", 55: "#ff1a1a",
+    56: "#00ffc3", 57: "#ff00aa", 58: "#00ff6e", 59: "#cc00ff", 60: "#ffb700",
+    61: "#00a8ff", 62: "#ff4d4d", 63: "#00ff8c", 64: "#ff0095", 65: "#00ffb7",
+    66: "#ff00cc", 67: "#00ff5e", 68: "#ff00f2", 69: "#00ffd0", 70: "#ff0055",
+    
+    _default: '#cccccc' // default color
+};
+
+function getDistrictColor(districtNumber) {
+    return districtColors[districtNumber] || districtColors._default;
+}
+
+function styleFn(feature) {
+    const districtNum = feature.properties.DISTRICT; 
+    return {
+        fillColor: getDistrictColor(districtNum),
+        weight: 2,
+        opacity: 1,
+        color: 'black',
+        dashArray: '3',
+        fillOpacity: 0.7
+    };
+}
+
+  ;
+
+  </script>
+</body>
+</html>
